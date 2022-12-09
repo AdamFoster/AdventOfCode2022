@@ -1,4 +1,4 @@
-#answer = 1703
+#answer = 2487
 
 #filename = 'sample01.txt'
 filename = 'input.txt'
