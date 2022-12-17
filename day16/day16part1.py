@@ -8,6 +8,7 @@ from copy import deepcopy
 filename = 'input.txt'
 maxtime = 30
 
+
 @dataclass
 class Valve:
     id: str = field(default="")
@@ -16,8 +17,11 @@ class Valve:
     #maxamount: int = field(default=0)
     amount: int = field(default=0)
     ison: bool = field(default=False)
+    timeon: int = field(default=0)
 
 valvesmaster: dict[str, Valve] = {}
+alldistances: dict[str, dict[str, int]] = {}
+
 
 @dataclass()
 class State:
@@ -27,7 +31,7 @@ class State:
     comefrom: str = field(default="AA")
 
     def __hash__(self):
-        return hash((self.location, tuple([(v.id, v.ison, v.amount) for v in self.valves.values()]))) #self.time, 
+        return hash((self.location, tuple([(v.id, v.amount) for v in self.valves.values()]))) #self.time, 
 
     def __eq__(self, other): #assumes same ids
         if not isinstance(other, type(self)): return NotImplemented
@@ -37,8 +41,6 @@ class State:
             return False
         else:
             for vid in self.valves:
-                if self.valves[vid].ison != other.valves[vid].ison:
-                    return False
                 if self.valves[vid].amount != other.valves[vid].amount:
                     return False
         return True
@@ -52,11 +54,34 @@ with open(filename, "r") as f:
         connections = [x[:-1] for x in line[9:-1]]
         connections.append(line[-1])
         v = Valve(id, rate, connections)
-        print(v)
+        #print(v)
         valvesmaster[id] = v
 
 
-def bfs():
+def distances(source:str) -> dict[str,int]:
+    dist = {vid: 9999999 for vid in valvesmaster}
+    prev = {vid: None for vid in valvesmaster}
+    Q = [vid for vid in valvesmaster]
+    dist[source] = 0
+
+    while len(Q) > 0:
+        Q.sort(key=lambda a: dist[a])
+        u = Q.pop(0)
+
+        for v in valvesmaster[u].connections:
+            if v in Q:
+                alt = dist[u] + 1
+                if alt < dist[v]:
+                    dist[v] = alt
+                    prev[v] = u
+    return dist
+
+
+#print(alldistances)
+#exit(0)
+
+
+def search(dfs=True):
     max = 0
     queue: list[State] = []
     explored: list[set[State]] = [set() for _ in range(maxtime+1)]
@@ -64,25 +89,20 @@ def bfs():
     queue.append(root)
     explored[root.time].add(root)
     while len(queue) > 0:
-        state = queue.pop(0)
+        #print("DFS", dfs)
+        state = queue.pop() if dfs else queue.pop(0)
         currentvalue = calc(state)
         if currentvalue > max:
             max = currentvalue
             print("Max improved", max)
             print(state)
+            print("Best estimate", best(state))
 
-        if state.time < 0:
+        if state.time == 1:
             #print("At the end")
             continue
 
-        #allon = True
-        #for v in state.valves.values():
-        #    if v.rate > 0 and not v.ison:
-        #        allon = False
-        #if allon:
-        #    continue
-
-        if currentvalue >= best(state):
+        if max >= best(state):
             continue
 
         #descend into on/off
@@ -90,16 +110,27 @@ def bfs():
             s: State = deepcopy(state)
             s.time -= 1
             s.valves[state.location].ison = True
+            s.valves[state.location].timeon = maxtime - s.time
             s.valves[state.location].amount = s.time * s.valves[state.location].rate
+            s.comefrom = ""
             if not hasexplored(s, explored): #s not in explored[s.time]:
                 explored[s.time].add(s)
                 queue.append(s)
                 #print("Adding valve on/off")
-        for connection in state.valves[state.location].connections:
-            #if state.location == "CC" and state.time == 26:
-                #print ("Moving", connection, state)
+
+        #try greedy
+        testconnections = sorted(alldistances[state.location].keys(), key=lambda k: state.valves[k].rate * (state.time-alldistances[state.location][k]) * (1 if state.valves[k].ison else 0))
+        if not dfs:
+            testconnections.reverse()
+        
+        for connection in testconnections: #alldistances[state.location]: #state.valves[state.location].connections:
+            if connection == state.comefrom:
+                continue
             s: State = deepcopy(state)
-            s.time -= 1
+            s.time -= alldistances[state.location][connection]
+            if s.time < 2:
+                continue
+            s.comefrom = state.location
             s.location = connection
             if not hasexplored(s, explored): # not in explored[s.time]:
                 explored[s.time].add(s)
@@ -124,24 +155,25 @@ def best(state: State) -> int:
         if valve.ison:
             total += valve.amount
         else:
-            total += valve.rate*state.time
+            if valve.rate > 0:
+                timeleftaftermove = state.time - 1 - alldistances[state.location][valve.id]
+                if timeleftaftermove > 0:
+                    total += valve.rate * timeleftaftermove
+                #total += valve.rate*state.time
+                #s.valves[state.location].amount = s.time * s.valves[state.location].rate
     return total
 
-def calcmaxammount(time: int, location: str, valves: dict[str, Valve]):
-    if valves[location].ison:
-        max = 0
-        for c in valves[location].connections:
-            candidate = calcmaxammount(time=time-1, location=c, valves=deepcopy(valves))
-            if c > max:
-                max = c
-        return max
-    else:
-        valves[location].ison = True
-        valves[location].amount = time * valves[location].rate
-        return calcmaxammount(time=time-1, location=location, valves=deepcopy(valves)) + valves[location].amount
 
-#print(calcmaxammount(time=maxtime, location="AA", valves=valvesmaster))
-bfs()
+for vid in valvesmaster:
+    alldistances[vid] = {k:d for (k,d) in distances(vid).items() if valvesmaster[k].rate>0}
+for vid in valvesmaster:
+    valvesmaster[vid].connections = [] #just to make sure we don't use these accidentally
+valvesmaster = {k:v for (k,v) in valvesmaster.items() if (v.rate != 0 or k == "AA")}
+
+print(alldistances)
+#exit(0)
+search(dfs=True)
+
 #root = State(time=30, location="AA", valves=deepcopy(valvesmaster))
 #print(root)
 #rc = deepcopy(root)
