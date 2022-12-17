@@ -123,11 +123,11 @@ def search(dfs=True):
         if not dfs:
             testconnections.reverse()
         
-        for connection in testconnections: #alldistances[state.location]: #state.valves[state.location].connections:
+        for connection in state.valves[state.location].connections: #testconnections: #alldistances[state.location]:
             if connection == state.comefrom:
                 continue
             s: State = deepcopy(state)
-            s.time -= alldistances[state.location][connection]
+            s.time -= 1 #alldistances[state.location][connection]
             if s.time < 2:
                 continue
             s.comefrom = state.location
@@ -166,9 +166,9 @@ def best(state: State) -> int:
 
 for vid in valvesmaster:
     alldistances[vid] = {k:d for (k,d) in distances(vid).items() if valvesmaster[k].rate>0}
-for vid in valvesmaster:
-    valvesmaster[vid].connections = [] #just to make sure we don't use these accidentally
-valvesmaster = {k:v for (k,v) in valvesmaster.items() if (v.rate != 0 or k == "AA")}
+#for vid in valvesmaster:
+#    valvesmaster[vid].connections = [] #just to make sure we don't use these accidentally
+#valvesmaster = {k:v for (k,v) in valvesmaster.items() if (v.rate != 0 or k == "AA")}
 
 print(alldistances)
 #exit(0)
