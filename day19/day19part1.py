@@ -70,6 +70,9 @@ MAXTIME = 24
 def prunekey(resources):
     return tuple([resources[t] for t in TYPES])
 
+def bestgeodes(currentgeodes, currentgeodesrobots, timeleft):
+    return currentgeodes + currentgeodesrobots * timeleft + timeleft*(timeleft+1)//2
+
 def geodes_collected(blueprint: Blueprint, state: State, cache: dict, prune: dict):
     #if state == None:
     #    assert False
@@ -96,19 +99,30 @@ def geodes_collected(blueprint: Blueprint, state: State, cache: dict, prune: dic
             print("PRUNE")
             return 0
     maxsubgeodes = 0
+
+    for t in TYPES[:-1]: # reject if too many resources
+        if state.resources[t] > 2*(sum([r.costs[t] for _,r in blueprint.robots.items() if t in r.costs])):
+            print("PRUNE 3")
+            return 0
+
     couldmakeall = True
-    for t in TYPES_R: #make robot, no reduce time
+    for t in TYPES_R: #make robot
         if state.canafford(blueprint.robots[t]):
             s = deepcopy(state)
+            for t2 in TYPES:
+                s.resources[t2] += s.robots[t2]
             for costtype,costamount in blueprint.robots[t].costs.items():
+                #print("R1", s.resources, blueprint)
                 s.resources[costtype] -= costamount
+                #print("R2", s.resources)
             s.robots[t] += 1
+            s.timeleft -= 1
             #print("NEW STATE", s)
             subgeodes = geodes_collected(blueprint, s, cache, prune)
             maxsubgeodes = max(maxsubgeodes, subgeodes)
         else:
             for costtype,costamount in blueprint.robots[t].costs.items():
-                if s.robots[costtype] > 0:
+                if state.resources[costtype] < costamount and state.robots[costtype] > 0:
                     couldmakeall = False
 
     if not couldmakeall:
