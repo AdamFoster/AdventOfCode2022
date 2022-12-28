@@ -2,12 +2,20 @@
 
 from dataclasses import dataclass, field
 from copy import deepcopy
+from functools import reduce
+from queue import PriorityQueue
 
 filename = 'sample01.txt'
 #filename = 'input.txt'
 
-TYPES = ["ore", "clay", "obsidian", "geode"]
-TYPES_R = ["geode", "obsidian", "clay", "ore"]
+MAXTIME = 24
+
+ORE = "ore"
+CLAY = "clay"
+OBSIDIAN = "obsidian"
+GEODE = "geode"
+TYPES = [ORE, CLAY, OBSIDIAN, GEODE]
+TYPES_R = [GEODE, OBSIDIAN, CLAY, ORE]
 
 @dataclass
 class Robot:
@@ -24,7 +32,8 @@ class Blueprint:
 class State:
     resources: dict[str, int]  #type -> number
     robots: dict[str, int]  #type -> number
-    timeleft: int 
+    timeleft: int
+    couldhavebuilt: dict[str, bool] #robottype -> bool
 
     def canafford(self, robot: Robot):
         for costtype,costvalue in robot.costs.items():
@@ -44,10 +53,17 @@ class State:
                 return False
             if self.robots[t] != other.robots[t]:
                 return False
+            if self.couldhavebuilt[t] != other.couldhavebuilt[t]:
+                return False
         return True
 
     def __hash__(self) -> int:
-        return hash((self.timeleft, tuple([self.resources[t] for t in TYPES]), tuple([self.robots[t] for t in TYPES])))
+        return hash((self.timeleft, tuple([self.resources[t] for t in TYPES]), tuple([self.robots[t] for t in TYPES]), tuple([self.couldhavebuilt[t] for t in TYPES])))
+
+    def __lt__(self, other):
+        if self.timeleft != other.timeleft:
+            return self.timeleft < other.timeleft
+        return tuple([(self.robots[t], self.resources[t]) for t in TYPES_R]) < tuple([(other.robots[t], other.resources[t]) for t in TYPES_R])
 
 blueprints = []
 with open(filename, "r") as f:
@@ -72,107 +88,107 @@ with open(filename, "r") as f:
 
 print(blueprints)
 
-MAXTIME = 32
 
-def prunekey(resources):
-    return tuple([resources[t] for t in TYPES])
+def statevalue(s: State) -> int:
+    v = s.resources[GEODE]
+    v = s.robots[GEODE] * s.timeleft
+    return v
 
-def bestgeodes(currentgeodes, currentgeodesrobots, timeleft):
-    return currentgeodes + currentgeodesrobots * timeleft + timeleft*(timeleft+1)//2
+def beststatevalue(s: State) -> int:
+    v = statevalue(s)
+    v += (s.timeleft * (s.timeleft-1) // 2)
+    return v
 
-def geodes_collected(blueprint: Blueprint, state: State, cache: dict, prune: dict):
-    #if state == None:
-    #    assert False
-    #if dict != None:
-    #    assert False
+def getqueuekey(state: State):
+    return ((state.timeleft, state.resources[GEODE]), state.robots[GEODE], state.robots[OBSIDIAN])
 
-    print("STATE", state, len(cache))
-    if state.timeleft == 0:
-        #exit(0)
-        return 0
-    if state in cache:
-        #print("HIT")
-        return cache[state]
-    if prunekey(state.resources) in prune:
-        previous = prune[prunekey(state.resources)]
-        prevbetter = True
-        if previous[0] <= state.timeleft:
-            prevbetter = False
-        else:
-            for t in TYPES:
-                if previous[1][t] <= state.robots[t]:
-                    prevbetter = False
-        if prevbetter:
-            #print("PRUNE")
-            return 0
-    maxsubgeodes = 0
 
-    #for t in TYPES[:-1]: # reject if too many resources
-    #    if state.resources[t] > 2*(sum([r.costs[t] for _,r in blueprint.robots.items() if t in r.costs])):
-    #        #print("PRUNE 3")
-    #        return 0
+def search(bp: Blueprint):
+    maxgeodes = 0
+    #queue: list[State] = []
+    pqueue = PriorityQueue()
+    #explored: list[set[State]] = [set() for _ in range(MAXTIME)]
+    explored: set[State] = set()
 
-    sufficientgeoderobots = True
-    for t,c in blueprint.robots["geode"].costs.items():
-        if state.robots[t] < c:
-            sufficientgeoderobots = False
-    if state.canafford(blueprint.robots["geode"]) and sufficientgeoderobots:
-        s = deepcopy(state) # no make robot, just reduce time
-        s.timeleft -= 1
-        for t in TYPES:
-            s.resources[t] += s.robots[t]
-        maxsubgeodes = max(maxsubgeodes, geodes_collected(blueprint, s, cache, prune))
-        geodes = maxsubgeodes + state.robots["geode"]
-        cache[state] = geodes
-        #print(cache[state])
-        prune[prunekey(state.resources)] = (state.timeleft, state.robots)
-        return geodes
-
-    couldmakeall = True
-    for t in TYPES_R: #make robot
-        if state.canafford(blueprint.robots[t]) and (t == "geode" or blueprint.maxes[t] > state.robots[t]):
-            s = deepcopy(state)
-            for t2 in TYPES:
-                s.resources[t2] += s.robots[t2]
-            for costtype,costamount in blueprint.robots[t].costs.items():
-                #print("R1", s.resources, blueprint)
-                s.resources[costtype] -= costamount
-                #print("R2", s.resources)
-            s.robots[t] += 1
-            s.timeleft -= 1
-            #print("NEW STATE", s)
-            subgeodes = geodes_collected(blueprint, s, cache, prune)
-            maxsubgeodes = max(maxsubgeodes, subgeodes)
-        else:
-            for costtype,costamount in blueprint.robots[t].costs.items():
-                if state.resources[costtype] < costamount and state.robots[costtype] > 0:
-                    couldmakeall = False
-
-    if not couldmakeall:
-        s = deepcopy(state) # no make robot, just reduce time
-        s.timeleft -= 1
-        for t in TYPES:
-            s.resources[t] += s.robots[t]
-        maxsubgeodes = max(maxsubgeodes, geodes_collected(blueprint, s, cache, prune))
-    #else: print("PRUNE 2")
-    geodes = maxsubgeodes + state.robots["geode"]
-    cache[state] = geodes
-    #print(cache[state])
-    prune[prunekey(state.resources)] = (state.timeleft, state.robots)
-    return geodes #amount mined in subticks + this tick
-
-def geodes_collected_starter(blueprint: Blueprint):
-    cache = {}
     robots = {t: 0 for t in TYPES}
     resources = {t: 0 for t in TYPES}
     robots["ore"] = 1
-    state = State(robots=robots, resources=resources, timeleft=MAXTIME)
-    return geodes_collected(blueprint=blueprint, state=state, cache=cache, prune={})
+    root = State(robots=robots, resources=resources, timeleft=MAXTIME, couldhavebuilt={t:False for t in TYPES})
+    #queue.append(root)
+    pqueue.put((getqueuekey(root), root))
+
+    explored.add(root)
+    while not pqueue.empty():
+        #print("DFS", dfs)
+        
+        #state = queue.pop(0)
+        _,state = pqueue.get()
+        print("State:",state)
+        currentvalue = statevalue(state)
+        if currentvalue > maxgeodes:
+            maxgeodes = currentvalue
+            print("Max improved", maxgeodes)
+            print(state)
+            print("Best estimate", beststatevalue(state))
+
+        if state.timeleft == 1:
+            #print("At the end")
+            continue
+
+        if maxgeodes >= beststatevalue(state):
+            continue
+
+        saturated = True
+        for geoderobotcosttype,geoderobotcostvalue in bp.robots[GEODE].costs.items():
+            if state.robots[geoderobotcosttype] < geoderobotcostvalue:
+                #can make more robots to make more geode robots
+                saturated = False
+        if saturated:
+            #no need to make more
+            maxgeodes = max(maxgeodes, beststatevalue(state))
+            print("Saturated",state,"=",beststatevalue(state),"vs", maxgeodes)
+            continue
+
+        couldhavebuilt = {t:False for t in TYPES}
+        for robottype,robot in bp.robots.items():
+            if state.canafford(robot) and bp.maxes[robottype] > state.robots[robottype] and state.couldhavebuilt[robottype] is False:
+                couldhavebuilt[robottype] = True
+                if robottype == GEODE:
+                    print("Exit from here")
+                    exit(0)
+                if state.timeleft < 3 and (robottype == ORE or robottype == CLAY):
+                    continue
+                #make a robot
+                s: State = deepcopy(state)
+                s.timeleft -= 1
+                s.robots[robottype] += 1
+                s.couldhavebuilt = {t:False for t in TYPES}
+                for costtype,costvalue in robot.costs.items():
+                    s.resources[costtype] -= costvalue
+                for srt,src in state.robots.items():
+                    s.resources[srt] += src
+                if s not in explored:
+                    explored.add(s)
+                    #queue.append(s)
+                    pqueue.put((getqueuekey(s), s))
+        
+        #try also not making a robot
+        if not reduce(lambda a,b: a and b, couldhavebuilt.values()):
+            s: State = deepcopy(state)
+            s.timeleft -= 1
+            s.couldhavebuilt = couldhavebuilt
+            for srt,src in state.robots.items():
+                s.resources[srt] += src
+            if s not in explored:
+                explored.add(s)
+                pqueue.put((getqueuekey(s), s))
+    return maxgeodes
+
 
 quality = 0
 for i,bp in enumerate(blueprints):
-    if i>3: break
-    v = geodes_collected_starter(blueprint=bp)
+    #if i>3: break
+    v = search(bp=bp)
     quality += (i+1)*v
     print (i+1,v,quality)
 
