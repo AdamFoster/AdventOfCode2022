@@ -5,8 +5,8 @@ from copy import deepcopy
 from functools import reduce
 from queue import PriorityQueue
 
-filename = 'sample01.txt'
-#filename = 'input.txt'
+#filename = 'sample01.txt'
+filename = 'input.txt'
 
 MAXTIME = 24
 
@@ -91,7 +91,7 @@ print(blueprints)
 
 def statevalue(s: State) -> int:
     v = s.resources[GEODE]
-    v = s.robots[GEODE] * s.timeleft
+    v += s.robots[GEODE] * s.timeleft
     return v
 
 def beststatevalue(s: State) -> int:
@@ -123,13 +123,13 @@ def search(bp: Blueprint):
         
         #state = queue.pop(0)
         _,state = pqueue.get()
-        print("State:",state)
+        #print("Expl",len(explored),"Q",pqueue.qsize(),"State:",state)
         currentvalue = statevalue(state)
         if currentvalue > maxgeodes:
             maxgeodes = currentvalue
             print("Max improved", maxgeodes)
-            print(state)
-            print("Best estimate", beststatevalue(state))
+            #print(state)
+            #print("Best estimate", beststatevalue(state))
 
         if state.timeleft == 1:
             #print("At the end")
@@ -149,13 +149,11 @@ def search(bp: Blueprint):
             print("Saturated",state,"=",beststatevalue(state),"vs", maxgeodes)
             continue
 
-        couldhavebuilt = {t:False for t in TYPES}
         for robottype,robot in bp.robots.items():
-            if state.canafford(robot) and bp.maxes[robottype] > state.robots[robottype] and state.couldhavebuilt[robottype] is False:
-                couldhavebuilt[robottype] = True
-                if robottype == GEODE:
-                    print("Exit from here")
-                    exit(0)
+            if state.canafford(robot) and ((bp.maxes[robottype] > state.robots[robottype] and state.couldhavebuilt[robottype] is False) or robottype == GEODE):
+                #if robottype == GEODE:
+                #    print("Exit from here")
+                #    exit(0)
                 if state.timeleft < 3 and (robottype == ORE or robottype == CLAY):
                     continue
                 #make a robot
@@ -173,7 +171,8 @@ def search(bp: Blueprint):
                     pqueue.put((getqueuekey(s), s))
         
         #try also not making a robot
-        if not reduce(lambda a,b: a and b, couldhavebuilt.values()):
+        couldhavebuilt = {t:(state.canafford(bp.robots[t]) or state.couldhavebuilt[t]) for t in TYPES}
+        if True: # not reduce(lambda a,b: a and b, couldhavebuilt.values()):
             s: State = deepcopy(state)
             s.timeleft -= 1
             s.couldhavebuilt = couldhavebuilt
@@ -182,6 +181,8 @@ def search(bp: Blueprint):
             if s not in explored:
                 explored.add(s)
                 pqueue.put((getqueuekey(s), s))
+            #else:
+                #print("Already explored", s)
     return maxgeodes
 
 
