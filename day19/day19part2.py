@@ -1,14 +1,14 @@
-#answer = 1480 (too low)
+#answer = 3168
 
 from dataclasses import dataclass, field
 from copy import deepcopy
 from functools import reduce
 from queue import PriorityQueue
 
-#filename = 'sample01.txt'
+filename = 'sample01.txt'
 filename = 'input.txt'
 
-MAXTIME = 24
+MAXTIME = 32
 
 ORE = "ore"
 CLAY = "clay"
@@ -187,9 +187,11 @@ def search(bp: Blueprint):
 
 
 quality = 0
+total = 1
 for i,bp in enumerate(blueprints):
-    #if i>3: break
+    if i>=3: break
     v = search(bp=bp)
+    total *= v
     quality += (i+1)*v
     print (i+1,v,quality)
-
+print("Total", total)
