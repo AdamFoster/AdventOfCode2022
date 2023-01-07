@@ -1,5 +1,6 @@
 #answer = 2120, 81312, 24401, 13381 # too low
 # 81362, 45423 # wrong
+# 136182
 
 import re
 
@@ -31,7 +32,7 @@ with open(filename, "r") as f:
     for _ in range(SS):
         line = f.readline()
         squares[0].append(line[SS:SS*2])
-        squares[1].append(line[SS:SS*2])
+        squares[1].append(line[SS*2:SS*3])
     for _ in range(SS):
         line = f.readline()
         squares[2].append(line[SS:SS*2])
@@ -124,7 +125,7 @@ for ind,i in enumerate(instructions):
                     elif facing == DOWN:
                         nl = (2, 0, location[2])
                     elif facing == RIGHT:
-                        nl = (1, location[1], 0)
+                        nl = (1, location[1], 0) ##
                 elif location[0] == 1:
                     if facing == UP:
                         nl = (5, SSM1, location[2])
@@ -135,7 +136,7 @@ for ind,i in enumerate(instructions):
                         nf = LEFT
                     elif facing == RIGHT:
                         nl = (4, SSM1-location[1], SSM1)
-                        nf = LEFT
+                        nf = LEFT ##
                 elif location[0] == 2:
                     if facing == UP:
                         nl = (0, SSM1, location[2])
@@ -146,7 +147,7 @@ for ind,i in enumerate(instructions):
                         nl = (4, 0, location[2])
                     elif facing == RIGHT:
                         nl = (1, SSM1, location[1])
-                        nf = UP
+                        nf = UP ##
                 elif location[0] == 3:
                     if facing == UP:
                         nl = (2, location[2], 0)
@@ -157,7 +158,7 @@ for ind,i in enumerate(instructions):
                     elif facing == DOWN:
                         nl = (5, 0, location[2])
                     elif facing == RIGHT:
-                        nl = (4, location[1], 0)
+                        nl = (4, location[1], 0) ##
                 elif location[0] == 4:
                     if facing == UP:
                         nl = (2, SSM1, location[2])
@@ -168,14 +169,14 @@ for ind,i in enumerate(instructions):
                         nf = LEFT
                     elif facing == RIGHT:
                         nl = (1, SSM1-location[1], SSM1)
-                        nf = LEFT
+                        nf = LEFT ##
                 elif location[0] == 5:
                     if facing == UP:
                         nl = (3, SSM1, location[2])
                     elif facing == LEFT:
                         nl = (0, 0, location[1])
                         nf = DOWN
-                    elif facing == DOWN: #todo
+                    elif facing == DOWN:
                         nl = (1, 0, location[2])
                         nf = DOWN
                     elif facing == RIGHT: #todo
